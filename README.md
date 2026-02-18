@@ -5,6 +5,10 @@ services.
 
 This findings belongs to version `6.2863.123` but it should work on any version, as long as you teak the config files.
 
+
+Huge thanks to [guino/LSCOutdoor1080P](https://github.com/guino/LSCOutdoor1080P) because their findings allowed me to
+create this toolkit.
+
 If this project was useful to you, please consider supporting me.
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/tasarren)

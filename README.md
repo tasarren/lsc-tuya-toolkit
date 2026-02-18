@@ -200,3 +200,8 @@ All custom logs are written to the SD card under `SD_DIR/logs/` (where `SD_DIR` 
 
 # Tested with the following cameras:
 <img width="1080" height="1080" alt="image" src="https://github.com/user-attachments/assets/d4881226-0206-43f8-b0c3-6c31529379e6" />
+<img width="640" height="640" alt="image" src="https://github.com/user-attachments/assets/50867618-3154-48a8-a86b-f27a90150e3d" />
+
+Open an Issue or PR anytime.
+
+If you used the Toolkit to dump your camera filesystem (you should have a dump/ directory on the SD card) and your firmware is not 6.2863.123, please share the dump (or a link) in this repo so we can add support for your version. If the dump contains secrets (Wi-Fi credentials/keys), remove them before uploading.

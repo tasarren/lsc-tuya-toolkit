@@ -75,6 +75,10 @@ From Ghidra analysis of `anyka_ipc`:
 
 Note: boot `service.sh` copies only the first 1024 bytes from SD (`dd ... bs=1024 count=1`), so keep this file small.
 
+## Telnet
+The Factory Test mode, enables a Telnet service by default on port 23, we inject `/etc/shadow` with `root` / `telnet`
+But you can also enable an alternative userless telnet by switching `TELNET=1` in `sd_card/custom/configs/hack.conf`
+
 ## ONVIF
 
 This firmware includes an ONVIF mini stack:
@@ -161,7 +165,8 @@ Important toggles:
 2. Tweak the config files in `sd_card/custom/configs/` folder.
 3. Copy everything from `sd_card/` to SD root.
 4. Boot camera with SD inserted.
-5. Enjoy
+5. Connect via telnet to `YOUR_IP:23` or `YOUR_IP:24` if you enable `TELNET=1` in `hack.conf` as an alternative Telnet service
+6. Enjoy
 
 ### What does it do
 1. Dumps the entire filesystem from your device into `sd_card/dumps` as a backup
@@ -185,9 +190,9 @@ Notes:
 - `WIFI_MODE=none` leaves networking unchanged (stock firmware manages it).
 - The scripts use `wpa_supplicant` + `wpa_cli` via `/usr/sbin/station_connect.sh`.
 
-# Tested with the following cameras:
-<img width="1080" height="1080" alt="image" src="https://github.com/user-attachments/assets/d4881226-0206-43f8-b0c3-6c31529379e6" />
-
 ## Logs
 
 All custom logs are written to the SD card under `SD_DIR/logs/` (where `SD_DIR` is `/tmp/sd` on-device).
+
+# Tested with the following cameras:
+<img width="1080" height="1080" alt="image" src="https://github.com/user-attachments/assets/d4881226-0206-43f8-b0c3-6c31529379e6" />

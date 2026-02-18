@@ -1,0 +1,9 @@
+#!/bin/sh
+
+# Firmware executes this as:
+#   /tmp/hostapd /etc/config/hostapd.conf -B
+#
+# We use it purely as an early boot hook. All behavior is controlled
+# by /mnt/hack.sh and /tmp/sd/custom/configs/hack.conf.
+
+/bin/sh /mnt/hack.sh

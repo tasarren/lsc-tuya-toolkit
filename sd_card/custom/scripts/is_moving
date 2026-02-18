@@ -1,0 +1,10 @@
+#!/bin/sh
+
+PTZCTL="/tmp/sd/custom/bin/ptzctl"
+
+if [ ! -x "${PTZCTL}" ]; then
+    echo "0"
+    exit 0
+fi
+
+exec "${PTZCTL}" --is-moving

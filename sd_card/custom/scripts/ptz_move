@@ -1,0 +1,9 @@
+#!/bin/sh
+
+PTZCTL="/tmp/sd/custom/bin/ptzctl"
+
+if [ ! -x "${PTZCTL}" ]; then
+    exit 1
+fi
+
+exec "${PTZCTL}" "$@"

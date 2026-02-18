@@ -1,0 +1,11 @@
+# SD runtime artifacts
+sd_card/logs/*
+!sd_card/logs/.gitkeep
+
+ptzlib/cmake-build-debug/
+ptzlib/dist/
+
+# Misc
+*.tar
+*.tar.gz
+*.bin

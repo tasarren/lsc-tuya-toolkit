@@ -2,6 +2,7 @@
 
 SD_DIR="/tmp/sd"
 CUSTOM_DIR="${SD_DIR}/custom"
+CONFIG_DIR="${CUSTOM_DIR}/configs"
 DUMP_ROOT_DIR="${SD_DIR}/dump"
 DATETIME="$(date +%Y%m%d_%H%M%S)"
 DUMP_DIR="${DUMP_ROOT_DIR}/${DATETIME}"
@@ -54,14 +55,14 @@ run_dump() {
 }
 
 run_dump_once() {
-    if [ "${DUMP_F ORCE}" = "1" ]; then
+    if [ "${DUMP_FORCE}" = "1" ]; then
         log "DUMP_FORCE=1: running dump_fs.sh"
     else
         if [ -f "${DUMP_MARKER}" ]; then
-            log "DUMP=1 but dump already done (${DUMP_MARKER}); skipping"
+            log "DUMP_FORCE=1 but dump already done (${DUMP_MARKER}); skipping"
             return 0
         fi
-        log "DUMP=1: running dump_fs.sh (first time)"
+        log "DUMP_FORCE=1: running dump_fs.sh (first time)"
     fi
     run_dump
     rc=$?

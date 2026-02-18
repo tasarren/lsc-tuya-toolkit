@@ -185,6 +185,9 @@ Notes:
 - `WIFI_MODE=none` leaves networking unchanged (stock firmware manages it).
 - The scripts use `wpa_supplicant` + `wpa_cli` via `/usr/sbin/station_connect.sh`.
 
+# Tested with the following cameras:
+<img width="1080" height="1080" alt="image" src="https://github.com/user-attachments/assets/d4881226-0206-43f8-b0c3-6c31529379e6" />
+
 ## Logs
 
 All custom logs are written to the SD card under `SD_DIR/logs/` (where `SD_DIR` is `/tmp/sd` on-device).

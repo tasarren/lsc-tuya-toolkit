@@ -42,6 +42,7 @@ run_dump() {
   log "SD_DIR=${SD_DIR}"
   log "DUMP_ROOT_DIR=${DUMP_ROOT_DIR}"
 
+  mkdir -p "${DUMP_DIR}"
   for src in /*; do
       name="${src#/}"
       case "${name}" in
@@ -81,7 +82,6 @@ mkdir -p "${SD_DIR}"
 mount /dev/mmcblk0p1 "${SD_DIR}" || mount /dev/mmcblk0 "${SD_DIR}" || true
 
 mkdir -p "${SD_DIR}/logs"
-mkdir -p "${DUMP_DIR}"
 exec >>"${LOG_FILE}" 2>&1
 
 load_cfg

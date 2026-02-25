@@ -2,38 +2,27 @@
 
 SD_DIR="/tmp/sd"
 CUSTOM_DIR="${SD_DIR}/custom"
-CFG_FILE="${CUSTOM_DIR}/configs/hack.conf"
+CFG_FILE="${CUSTOM_DIR}/configs/wifi.conf"
 DATETIME="$(date +%Y%m%d_%H%M%S)"
 LOG_FILE="${SD_DIR}/logs/wifi.${DATETIME}.log"
 
 log() {
     echo "[$(date +%Y-%m-%dT%H:%M:%S)] $*" >> "${LOG_FILE}"
 }
+exec >>"${LOG_FILE}" 2>&1
 
-trim() {
-    # usage: trim "  value  " -> "value"
-    echo "$1" | sed 's/^ *//; s/ *$//'
-}
+load_cfg() {
+    # Defaults
+    MODE=none
+    SSID=""
+    PASS=""
+    SECURITY=0
+    DHCP=1
 
-get_cfg() {
-    key="$1"
-    # Accept either strict KEY=value or KEY = value (whitespace tolerated).
-    # Ignores commented lines.
-    awk -v k="$key" -F= '
-        /^[[:space:]]*#/ { next }
-        /^[[:space:]]*$/ { next }
-        {
-            kk=$1
-            gsub(/^[[:space:]]+|[[:space:]]+$/, "", kk)
-            if (kk == k) {
-                vv=$2
-                sub(/^[[:space:]]+/, "", vv)
-                sub(/[[:space:]]+$/, "", vv)
-                print vv
-                exit
-            }
-        }
-    ' "${CFG_FILE}" 2>/dev/null
+    if [ -f "${CFG_FILE}" ]; then
+        # shellcheck disable=SC1090
+        . "${CFG_FILE}"
+    fi
 }
 
 stop_wifi_stack() {
@@ -44,12 +33,7 @@ stop_wifi_stack() {
 }
 
 start_sta() {
-    ssid="$1"
-    pass="$2"
-    sec="$3"
-    dhcp="$4"
-
-    if [ -z "${ssid}" ]; then
+    if [ -z "${SSID}" ]; then
         log "STA: SSID is empty, skipping"
         return 1
     fi
@@ -68,14 +52,10 @@ EOF
     log "STA: starting wpa_supplicant"
     wpa_supplicant -B -iwlan0 -Dnl80211 -c /tmp/wpa_supplicant.conf >>"${LOG_FILE}" 2>&1 || true
 
-    if [ -z "${sec}" ]; then
-        sec=3
-    fi
+    log "STA: connecting ssid='${SSID}' security=${SECURITY}"
+    /usr/sbin/station_connect.sh "${SECURITY}" "${SSID}" "${PASS}" >>"${LOG_FILE}" 2>&1 || true
 
-    log "STA: connecting ssid='${ssid}' security=${sec}"
-    /usr/sbin/station_connect.sh "${sec}" "${ssid}" "${pass}" >>"${LOG_FILE}" 2>&1 || true
-
-    if [ "${dhcp}" = "0" ]; then
+    if [ "${DHCP}" = "0" ]; then
         log "STA: DHCP disabled by config"
         return 0
     fi
@@ -90,23 +70,12 @@ EOF
     return 0
 }
 
-if [ ! -f "${CFG_FILE}" ]; then
-    mkdir -p "${SD_DIR}/logs" >/dev/null 2>&1 || true
-    log "No config file: ${CFG_FILE}"
-    exit 0
-fi
-
-mkdir -p "${SD_DIR}/logs" >/dev/null 2>&1 || true
-
-MODE="$(get_cfg MODE)"
-# Some firmwares don't ship coreutils tr; avoid dependency.
-MODE="$(echo "${MODE}" | sed 'y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/')"
-
+load_cfg
 log "wifi_apply starting (MODE=${MODE})"
 
 case "${MODE}" in
     none|"")
-        log "MODE=none, leaving wifi unchanged (set WIFI_MODE=sta in hack.conf)"
+        log "MODE=none, leaving wifi unchanged (set WIFI_MODE=sta in wifi.conf)"
         # Try to put wifi back into station mode after AP hijack.
         killall udhcpd >/dev/null 2>&1 || true
         ifconfig wlan0 0.0.0.0 >/dev/null 2>&1 || true
@@ -114,14 +83,7 @@ case "${MODE}" in
         exit 0
         ;;
     sta)
-        SSID="$(get_cfg SSID)"
-        PASS="$(get_cfg PASS)"
-        SECURITY="$(get_cfg SECURITY)"
-        DHCP="$(get_cfg DHCP)"
-        if [ -z "${DHCP}" ]; then
-            DHCP=1
-        fi
-        start_sta "${SSID}" "${PASS}" "${SECURITY}" "${DHCP}"
+        start_sta
         exit $?
         ;;
     *)

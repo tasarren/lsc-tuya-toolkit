@@ -1,29 +1,14 @@
 #!/bin/sh
 
-SD_DIR="/tmp/sd"
-CUSTOM_DIR="${SD_DIR}/custom"
-CONFIG_DIR="${CUSTOM_DIR}/configs"
-DUMP_ROOT_DIR="${SD_DIR}/dump"
-DATETIME="$(date +%Y%m%d_%H%M%S)"
-DUMP_DIR="${DUMP_ROOT_DIR}/${DATETIME}"
-LOG_FILE="${SD_DIR}/logs/dump.${DATETIME}.log"
-STATE_DIR="${CUSTOM_DIR}/state"
-DUMP_MARKER="${STATE_DIR}/dump.done"
-CFG_FILE="${CONFIG_DIR}/hack.conf"
+LOG_FILENAME="dump"
+. "/tmp/sd/custom/env.sh"
 
-log() {
-    echo "[$(date +%Y-%m-%dT%H:%M:%S)] $*"
-}
+# Defaults
+DUMP_FORCE=0
 
-load_cfg() {
-    # Defaults
-    DUMP_FORCE=0
+load_cfg
 
-    if [ -f "${CFG_FILE}" ]; then
-        # shellcheck disable=SC1090
-        . "${CFG_FILE}"
-    fi
-}
+log "Running dump script"
 
 copy_item() {
     src="$1"
@@ -78,11 +63,4 @@ run_dump_once() {
     return $rc
 }
 
-mkdir -p "${SD_DIR}"
-mount /dev/mmcblk0p1 "${SD_DIR}" || mount /dev/mmcblk0 "${SD_DIR}" || true
-
-mkdir -p "${SD_DIR}/logs"
-exec >>"${LOG_FILE}" 2>&1
-
-load_cfg
 run_dump_once

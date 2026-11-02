@@ -1,32 +1,17 @@
 #!/bin/sh
+# This script is run every time anyka_ipc.sh is called with start argument
+# in order to re-run our payloads everytime anyka_ipc restarts
+# This behaviour is controlled by the anyka daemon process.
 
-SD_DIR="/tmp/sd"
-CUSTOM_DIR="${SD_DIR}/custom"
-SCRIPTS_DIR="${CUSTOM_DIR}/scripts"
-CONFIG_DIR="${CUSTOM_DIR}/configs"
-STATE_DIR="${CUSTOM_DIR}/state"
-CFG_FILE="${CONFIG_DIR}/hack.conf"
-DATETIME="$(date +%Y%m%d_%H%M%S)"
-LOG_FILE="${SD_DIR}/logs/entrypoint.${DATETIME}.log"
+LOG_FILENAME="entrypoint"
+. "/tmp/sd/custom/env.sh"
 
-log() {
-    echo "[$(date +%Y-%m-%dT%H:%M:%S)] $*"
-}
+# Defaults
+SAVE_SYSLOG=0
+SANDBOX_MODE=0
 
-mkdir -p "${SD_DIR}/logs" >/dev/null 2>&1 || true
-mkdir -p "${STATE_DIR}" >/dev/null 2>&1 || true
-
-exec >>"${LOG_FILE}" 2>&1
-
-load_cfg() {
-    # Defaults
-    SAVE_SYSLOG=1
-
-    if [ -f "${CFG_FILE}" ]; then
-        # shellcheck disable=SC1090
-        . "${CFG_FILE}"
-    fi
-}
+load_cfg
+log "entrypoint starting"
 
 save_syslog_tail() {
     if [ "${SAVE_SYSLOG}" != "1" ]; then
@@ -52,7 +37,7 @@ set_cpus() {
 }
 
 wait_rtsp_listening() {
-  PORTS="554 88 89"
+  PORTS="554 88 89 6667 6668 6669 7000 7001"
   MAX="${1:-30}"   # seconds
   i=0
   log "Wait for RTSP"
@@ -84,19 +69,23 @@ wait_anyka() {
   log "anyka_ipc running"
   sleep 30
 }
-log "entrypoint starting"
 
-load_cfg
 save_syslog_tail
 
 log "DATE IS: $(date)"
-/bin/sh "${SCRIPTS_DIR}/telnet.sh" >/dev/null 2>&1 &
-/bin/sh "${SCRIPTS_DIR}/ftp.sh" >/dev/null 2>&1 &
-/bin/sh "${SCRIPTS_DIR}/offline.sh" >/dev/null 2>&1 &
+
+if [ "${SANDBOX_MODE}" != "1" ]; then
+  wait_anyka
+fi
+
 /bin/sh "${SCRIPTS_DIR}/wifi_apply.sh" >/dev/null 2>&1 &
+/bin/sh "${SCRIPTS_DIR}/remote.sh" >/dev/null 2>&1 &
+/bin/sh "${SCRIPTS_DIR}/offline.sh" >/dev/null 2>&1 &
 /bin/sh "${SCRIPTS_DIR}/onvif.sh" >/dev/null 2>&1 &
 
-# Wait until any RTSP port is open
-wait_rtsp_listening 30
+if [ "${SANDBOX_MODE}" != "1" ]; then
+  # Wait until any RTSP port is open
+  wait_rtsp_listening 30
+fi
 
 log "entrypoint done"

@@ -1,0 +1,9 @@
+**
+!/latch/
+!/latch/**/*
+!/src/
+!/src/**/*
+!/tests/
+!/tests/**/*
+!/pyproject.toml
+!/requirements.txt

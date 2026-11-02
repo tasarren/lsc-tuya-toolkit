@@ -1,0 +1,1 @@
+"""CLI adapter for TuyHA."""

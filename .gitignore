@@ -1,11 +1,7 @@
-# SD runtime artifacts
-sd_card/logs/*
-!sd_card/logs/.gitkeep
-
-ptzlib/cmake-build-debug/
-ptzlib/dist/
-
-# Misc
-*.tar
-*.tar.gz
-*.bin
+**/build/
+**/*.egg-info
+**/.cache/
+**/__pycache__
+# Generated SD metadata and private publication staging/recovery files.
+/sd_card/custom/state/manifest.json
+/sd_card/custom/.tuyha-*/

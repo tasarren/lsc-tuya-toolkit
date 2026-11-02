@@ -1,207 +1,75 @@
-# LSC Camera  Root Toolkit
+# TuyHA
 
-This file documents the current firmware findings and a practical SD-card flow to boot custom scripts and keep local
-services.
+Use a supported Anyka-based Tuya camera on your local network, without the Tuya cloud. TuyHA creates the configuration files; the SD card payload starts the camera's existing firmware with them. No external MQTT broker is needed for the default setup.
 
-This findings belongs to version `6.2863.123` but it should work on any version, as long as you teak the config files.
+The project reports this working on one LSC camera. Other models and firmware versions need separate validation. This is local RTSP video, not Tuya app control or real P2P support.
 
+## Before you start
 
-Huge thanks to [guino/LSCOutdoor1080P](https://github.com/guino/LSCOutdoor1080P) because their findings allowed me to
-create this toolkit.
+- Python 3.10 or newer on your computer.
+- A FAT32 microSD card and a way to copy files onto it.
+- The Wi-Fi name and password the camera will use.
+- A player that supports RTSP over UDP, such as `mpv`.
 
-If this project was useful to you, please consider supporting me.
+> Keep the camera on a trusted, isolated network. The SD payload enables an unauthenticated shell on port 24 by default. Its temporary MQTT listener also accepts unauthenticated clients on all interfaces. Do not expose these ports to the internet.
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/tasarren)
+## 1. Install
 
-## Key boot findings from the dump
+Run these commands from the repository folder:
 
-- Boot chain: `init -> /etc/init.d/rcS -> /etc/init.d/rc.local -> /usr/sbin/main.sh`.
-- `main.sh` launches `/tmp/service.sh start` (copied from `/usr/sbin/service.sh`).
-- `service.sh` mounts TF card and checks marker files under `/mnt`.
-- If `_ht_ap_mode.conf` exists, firmware copies `/mnt/hostapd` to `/tmp/hostapd` and wifi scripts execute it.
-This is where we hijack the system. Because this is run before really starting the daemon/anyka_ipc, we can
-modify the system, and then allow normal startup with poisoned scripts.
-- If `_ht_get_log.conf` exists, firmware won't unmount our SD card from `/mnt` and will also dump debug logs into
-  `/ht_log` folder 
-- If `_ht_av_mode.conf` exists, an Audio/Video test will begin, booting up a FTP server to unknown purposes.
-- If `ak39_factory.ini` exists, the system will boot in factory testing mode
- 
-This is the startup hijack point we keep using.
-
-## SD payload layout
-
-Use `sd_card/` as the SD card root content:
-
-- `_ht_ap_mode.conf` - required marker to trigger custom `hostapd` execution.
-- `_ak39_factory.ini` - required marker to trigger factory test mode.
-- `hostapd` - launcher (executed by firmware; runs `hack.sh`).
-- `hack.sh` - tiny bootstrap called by `hostapd`.
-- `logs/` - persistent logs written to SD.
-- `custom/` - all custom scripts/configs/binaries.
-
-## Factory Testing Mode
-
-On this firmware, an empty factory marker file enables a Factory Testing Mode 
-with a ready to use RTSP server.
-
-This is really all what you need if you only want a RTSP camera, without PTZ, just video.
-
-- Create an empty `_ak39_factory.ini` on the SD root (this repo includes an empty
-  `sd_card/_ak39_factory.ini`).
-- Reboot.
-- RTSP listens on port `554`.
-- The working URL on this device is:
-
-```
-rtsp://CAMERA_IP:554/main_ch
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install .
+tuyha --help
 ```
 
-> If you get `RTSP/1.0 454 Session Not Found` on `/videoMain`, try `/main_ch`.
+## 2. Create camera files
 
-Factory mode also plays loud startup prompt audio by default.
-In this SD payload you can disable it with:
+Run from the repository folder. Replace the Wi-Fi placeholders:
 
-- `MUTE_FACTORY_PROMPT=1` in `sd_card/root_system/custom/configs/hack.conf`
+> The command-line password can appear in shell history and process listings. Generated files contain recoverable credentials and private keys. Keep the whole output folder private. Do not commit or share it.
 
-### What `_ak39_factory.ini` actually is
+```bash
+tuyha create --wifi-ssid "<WIFI_SSID>" \
+  --wifi-password "<WIFI_PASSWORD>"
+tuyha verify --file sd_card/custom/state/tuya_user.hacked.db --scratch
+```
 
-From Ghidra analysis of `anyka_ipc`:
+`create` puts everything under `sd_card/custom/state/`, with certificates in `mqtt/`. It replaces its generated files but keeps unrelated camera state. `verify` checks files offline; it does not prove the camera will boot or play video.
 
-- Factory mode is detected by `access("/tmp/_ak39_factory.ini", 0)`.
-- The file is parsed using `iniparser_load("/tmp/_ak39_factory.ini")`.
-- The code looks up keys in the `section:key` form (iniparser style), e.g.:
-    - `wifi_station:ssid`
-    - `wifi_station:passphrase`
-    - `wifi_station:ip`
-    - `wifi_station:netmask`
-    - `wifi_station:gateway`
-    - `aging_test:aging_value`
+## 3. Prepare the SD card
 
-Note: boot `service.sh` copies only the first 1024 bytes from SD (`dd ... bs=1024 count=1`), so keep this file small.
+> If the generated user database is missing, the SD payload attempts to use the factory database. The camera may reconnect to the Tuya cloud. Failed mounts can also leave factory state active. Check the copied set before booting. If startup fails, use the [deployment and mount checks](docs/hardware-validation.md), not file presence alone.
 
-## Telnet
-The Factory Test mode, enables a Telnet service by default on port 23, we inject `/etc/shadow` with `root` / `telnet`
-But you can also enable an alternative userless telnet by switching `TELNET=1` in `sd_card/custom/configs/hack.conf`
+1. Copy the contents of `sd_card/` to the card's root, including `custom/state/`. No separate artifact-copy step is needed.
+2. On the card, set `TELNET=0` in `custom/configs/hack.conf` unless you need shell access for diagnosis. Leave the Wi-Fi helper at its default `MODE=none`; the generated database supplies Wi-Fi settings.
+3. Confirm `custom/state/` contains both generated DBs and `_ht_uuid.ini`, and `custom/state/mqtt/` contains `server.crt` and `server.key` from that run.
+4. Eject the card, insert it into the camera, and power on.
 
-## ONVIF
+Use a fresh card state for each camera. A used card carries that camera's hardware settings and private factory backups. See [moving a card](docs/SD_CARD.md#what-not-to-ship-between-cameras).
 
-This firmware includes an ONVIF mini stack:
+## 4. Play video
 
-- `/usr/local/bin/mini_onvif_service.sh` starts `lighttpd`, `wsd_simple_server`, and `onvif_notify_server`.
-- In the SD payload, set `ONVIF=1` in `sd_card/custom/configs/hack.conf` to start it.
+Find the camera's IP address in your router or access point. Replace `CAMERA_IP`:
 
-Notes:
+```bash
+mpv --rtsp-transport=udp --no-cache rtsp://CAMERA_IP:88/videoMain
+mpv --rtsp-transport=udp --no-cache rtsp://CAMERA_IP:89/videoSub
+```
 
-- ONVIF uses port `8080` on this firmware (lighttpd).
-  ``- When `ONVIF=1`, the scripts write `logs/onvif_status.txt` on the SD card with process/port probes.
-  ``
+Use UDP: RTP-over-TCP stalls on the examined firmware. The first picture may take about two seconds while the player waits for a keyframe. If errors continue, use the [troubleshooting guide](docs/troubleshooting.md).
 
-> You can also enable ONVIF with the stock Tuya APP by setting `bool_onvif_switch = 1` in `_ht_sw_settings.ini`
+## Change Wi-Fi or renew certificates
 
-### Configuring ONVIF profiles
+For a fresh setup, repeat `create` and copy the updated `sd_card/` contents again. This replaces generated files and creates a new identity. Certificates expire 365 days after creation by default.
 
-The ONVIF service uses `/usr/local/etc/onvif_simple_server.conf`.
-In this SD payload we can override it (non-flash) via a bind mount:
+To keep an existing identity, use [dump and recreate](docs/cli.md#edit-and-recreate-an-existing-database). JSON dumps contain full, unredacted credentials. Recreating refreshes certificates and the database encryption key; deploy the databases, identity INI and server certificate/key together.
 
-- SD file: `sd_card/custom/configs/onvif_simple_server.conf`
-- Mounted to: `/usr/local/etc/onvif_simple_server.conf`
+## More information
 
-### ONVIF PTZ helpers (SD-based)
-
-Some firmware builds advertise PTZ via ONVIF but do not ship the expected helper commands in `/usr/local/bin`.
-
-This payload provides replacements from SD:
-
-- `/tmp/sd/custom/scripts/ptz_move`
-- `/tmp/sd/custom/scripts/get_position`
-- `/tmp/sd/custom/scripts/is_moving`
-- `/tmp/sd/custom/scripts/ptz_presets.sh`
-
-The PTZ wrappers call:
-
-- `/tmp/sd/custom/bin/ptzctl`
-
-`ptzctl` reads PTZ settings directly from:
-
-- `sd_card/custom/configs/ptz.conf`
-
-Key tuning fields in `ptz.conf`:
-
-- `PAN_FD_ADDR`, `TILT_FD_ADDR`, `IOCTL_MOVE`
-- `PAN_INVERT`, `TILT_INVERT`,
-- `STEP_MULT`, `STEP_REPEAT`
-- `DEBUG_LOG` (set `1` to write `ptz.log`, `0` to disable PTZ logging)
-
-The ONVIF config points directly to these SD scripts when:
-
-- `ONVIF=1`
-- `ONVIF_PTZ=1`
-
-If PTZ actions fail in clients (for example Home Assistant), check:
-
-- `logs/ptz.log`
-
-### Building `ptzctl`:
-
-- `./build_ptzctl.sh`
-
-Docker-based isolated ARM build (recommended):
-
-- `./docker/build_binaries.sh`
-
-This uses a containerized ARM GCC toolchain and copies built artifacts back with `docker cp`.
-
-Default output path:
-
-- `sd_card/custom/bin/ptzctl`
-
-## Configuration-driven behavior
-
-All custom behavior is controlled by `custom/configs/hack.conf` (strict shell `KEY=value`).
-
-Important toggles:
-
-- `DUMP_FORCE=1` forces dump to run again even if done flag exists.
-
-## How to use (quick steps)
-
-1. Format SD card as FAT32.
-2. Tweak the config files in `sd_card/custom/configs/` folder.
-3. Copy everything from `sd_card/` to SD root.
-4. Boot camera with SD inserted.
-5. Connect via telnet to `YOUR_IP:23` or `YOUR_IP:24` if you enable `TELNET=1` in `hack.conf` as an alternative Telnet service
-6. Enjoy
-
-### What does it do
-1. Dumps the entire filesystem from your device into `sd_card/dumps` as a backup
-2. Injects some payloads to prevent regular boot.
-3. Creates `/etc/shadow` with an user `root` with password `telnet`
-> You can create your own password replacing `sd_card/shadow` file
-  
-For normal behavior:
-
-- Do not use the SD Card :)
-
-## Wi-Fi setup from SD
-You should use `sd_card/_ak39_factory.ini` to setup your Wi-Fi settings to allow Anyka IPC to set it up for you.
-> You can leave ip, netmask and gateway blank to use DHCP
-
-If you do not want to use this (whatever), ensure `_ak39_factory.ini` is empty and edit `sd_card/custom/configs/wifi.conf`.
-
-This will start wpa_supplicant with the settings provided in `wifi.conf`
-
-Notes:
-- `WIFI_MODE=none` leaves networking unchanged (stock firmware manages it).
-- The scripts use `wpa_supplicant` + `wpa_cli` via `/usr/sbin/station_connect.sh`.
-
-## Logs
-
-All custom logs are written to the SD card under `SD_DIR/logs/` (where `SD_DIR` is `/tmp/sd` on-device).
-
-# Tested with the following cameras:
-<img width="1080" height="1080" alt="image" src="https://github.com/user-attachments/assets/d4881226-0206-43f8-b0c3-6c31529379e6" />
-<img width="640" height="640" alt="image" src="https://github.com/user-attachments/assets/50867618-3154-48a8-a86b-f27a90150e3d" />
-
-Open an Issue or PR anytime.
-
-If you used the Toolkit to dump your camera filesystem (you should have a dump/ directory on the SD card) and your firmware is not 6.2863.123, please share the dump (or a link) in this repo so we can add support for your version. If the dump contains secrets (Wi-Fi credentials/keys), remove them before uploading.
+- [CLI reference and editing existing databases](docs/cli.md)
+- [SD card behavior](docs/SD_CARD.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [Developer documentation](docs/index.md)
+- [Firmware research](docs/research/index.md)

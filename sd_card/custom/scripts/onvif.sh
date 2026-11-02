@@ -1,29 +1,17 @@
 #!/bin/sh
+# This script starts an ONVIF server manually
+# anyka_ipc should start the ONVIF process
+# if you adjust _hw_sw_settings.ini and set `bool_onvif_switch = 1`
 
-SD_DIR="/tmp/sd"
-CUSTOM_DIR="${SD_DIR}/custom"
-DATETIME="$(date +%Y%m%d_%H%M%S)"
-CFG_FILE="${CUSTOM_DIR}/configs/hack.conf"
-LOG_FILE="${SD_DIR}/logs/onvif.${DATETIME}.log"
+LOG_FILENAME="onvif"
+. "/tmp/sd/custom/env.sh"
 
-log() {
-    echo "[$(date +%Y-%m-%dT%H:%M:%S)] $*"
-}
+# Defaults
+ONVIF=0
+ONVIF_PTZ=0
+ONVIF_PTZCTL="${CUSTOM_DIR}/bin/ptzctl"
 
-mkdir -p "${SD_DIR}/logs" >/dev/null 2>&1 || true
-exec >>"${LOG_FILE}" 2>&1
-
-load_cfg() {
-    # Defaults
-    ONVIF=1
-    ONVIF_PTZ=1
-    ONVIF_PTZCTL="${CUSTOM_DIR}/bin/ptzctl"
-
-    if [ -f "${CFG_FILE}" ]; then
-        # shellcheck disable=SC1090
-        . "${CFG_FILE}"
-    fi
-}
+load_cfg
 
 mount_onvif_ptz_helpers() {
     if [ "${ONVIF_PTZ}" != "1" ]; then
@@ -44,25 +32,7 @@ mount_onvif_ptz_helpers() {
     fi
 }
 
-ensure_onvif() {
-    mount_onvif_ptz_helpers
-
-    if ps | grep -v grep | grep -q "lighttpd -f /usr/local/etc/lighttpd.conf"; then
-        return 0
-    fi
-
-    if [ -x /usr/local/bin/mini_onvif_service.sh ]; then
-        /usr/local/bin/mini_onvif_service.sh start || true
-        log "ONVIF started (mini_onvif_service.sh)"
-    else
-        log "ONVIF requested but missing: /usr/local/bin/mini_onvif_service.sh"
-    fi
-}
-
 log_onvif_status() {
-    if [ "${ONVIF}" != "1" ]; then
-        return 0
-    fi
     # Once per boot.
     if [ -e /tmp/.ht_onvif_status_logged ]; then
         return 0
@@ -91,8 +61,24 @@ log_onvif_status() {
     log "Wrote ${SD_DIR}/logs/onvif_status.txt"
 }
 
-load_cfg
-if [ "${ONVIF}" = "1" ]; then
-  ensure_onvif
-  log_onvif_status
-fi
+ensure_onvif() {
+    if [ "${ONVIF}" != "1" ]; then
+        return 0
+    fi
+
+    mount_onvif_ptz_helpers
+
+    if ps | grep -v grep | grep -q "lighttpd -f /usr/local/etc/lighttpd.conf"; then
+        return 0
+    fi
+
+    if [ -x /usr/local/bin/mini_onvif_service.sh ]; then
+        /usr/local/bin/mini_onvif_service.sh start || true
+        log "ONVIF started (mini_onvif_service.sh)"
+    else
+        log "ONVIF requested but missing: /usr/local/bin/mini_onvif_service.sh"
+    fi
+    log_onvif_status
+}
+
+ensure_onvif

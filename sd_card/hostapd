@@ -3,7 +3,81 @@
 # Firmware executes this as:
 #   /tmp/hostapd /etc/config/hostapd.conf -B
 #
-# We use it purely as an early boot hook. All behavior is controlled
-# by /mnt/hack.sh and /tmp/sd/custom/configs/hack.conf.
+# We use it to inject our payloads
 
-/bin/sh /mnt/hack.sh
+SD_DIR="/tmp/sd"
+LOG_FILENAME="hostapd"
+
+mkdir -p "${SD_DIR}"
+mount /dev/mmcblk0p1 "${SD_DIR}" || mount /dev/mmcblk0 "${SD_DIR}" || true
+
+
+show_info() {
+  log "===================="
+  log "------------ process"
+  ps aux
+  log "------------ /tmp"
+  ls -a /tmp
+  log "------------ netstat"
+  netstat -tulpn
+  log "===================="
+}
+
+. "${SD_DIR}/custom/env.sh"
+
+# Defaults
+SANDBOX_MODE=0
+load_cfg
+
+log "hack.sh starting ($(date))"
+
+hijack_system() {
+  log "Hijack system!"
+
+  log "Checkin stuff pre-hack"
+  show_info
+
+  # RUN HACK STAGES
+  /bin/sh "${SCRIPTS_DIR}/hack_stage_1.sh" >/dev/null 2>&1
+
+  # Finish AP hijack: drop firmware AP addressing, then let anyka start on bind-mounts.
+  killall udhcpd >/dev/null 2>&1 || true
+  ifconfig wlan0 0.0.0.0 >/dev/null 2>&1 || true
+
+  # Cleanup, allow anyka_ipc to boot normally
+  rm /tmp/_ht_ap_mode.conf || true
+  rm /tmp/hostapd || true
+
+  log "Checkin stuff post-hack"
+  kill_anyka
+  kill_caches
+  sync
+  show_info
+}
+
+run_sandbox() {
+  log "Running SANDBOX MODE"
+  # Blink red to indicate Sandbox Mode
+  /bin/sh "${SCRIPTS_DIR}/led_control.sh" red on 100
+  /bin/sh "${SCRIPTS_DIR}/led_control.sh" red blink 200 300
+
+  # Run entrypoint normally
+  /bin/sh "${SCRIPTS_DIR}/entrypoint.sh" >/dev/null 2>&1
+}
+
+# Blink super fast to indicate Hack is running
+# /bin/sh "${SCRIPTS_DIR}/led_control.sh" blue on 100
+# /bin/sh "${SCRIPTS_DIR}/led_control.sh" blue blink 50 50
+
+# Dump entire Filesystem
+# /bin/sh "${SCRIPTS_DIR}/dump_fs.sh" >/dev/null 2>&1
+
+if [ "${SANDBOX_MODE}" = "1" ]; then
+  run_sandbox
+else
+  hijack_system
+fi
+
+# Hack ended, turn of leds
+# /bin/sh "${SCRIPTS_DIR}/led_control.sh" blue off
+# /bin/sh "${SCRIPTS_DIR}/led_control.sh" red off

@@ -1,35 +1,25 @@
 #!/bin/sh
+# This scripts enables WiFi by manually connecting to the interface
+# anyka_ipc should handle connection correctly if using the kvtool
+# but this script is useful if you want full sandbox mode
+LOG_FILENAME="wifi"
+. "/tmp/sd/custom/env.sh"
 
-SD_DIR="/tmp/sd"
-CUSTOM_DIR="${SD_DIR}/custom"
-CFG_FILE="${CUSTOM_DIR}/configs/wifi.conf"
-DATETIME="$(date +%Y%m%d_%H%M%S)"
-LOG_FILE="${SD_DIR}/logs/wifi.${DATETIME}.log"
-
-log() {
-    echo "[$(date +%Y-%m-%dT%H:%M:%S)] $*" >> "${LOG_FILE}"
-}
-exec >>"${LOG_FILE}" 2>&1
-
-load_cfg() {
-    # Defaults
-    MODE=none
-    SSID=""
-    PASS=""
-    SECURITY=0
-    DHCP=1
-
-    if [ -f "${CFG_FILE}" ]; then
-        # shellcheck disable=SC1090
-        . "${CFG_FILE}"
-    fi
-}
+# Defaults
+MODE=none
+SSID=""
+PASS=""
+SECURITY=0
+DHCP=1
+load_cfg
+log "wifi_apply starting (MODE=${MODE})"
 
 stop_wifi_stack() {
-    killall udhcpd >/dev/null 2>&1 || true
-    killall udhcpc >/dev/null 2>&1 || true
-    killall wpa_supplicant >/dev/null 2>&1 || true
-    killall hostapd >/dev/null 2>&1 || true
+    log "Stop network stack"
+    killall wpa_supplicant >>"${LOG_FILE}" 2>&1 || true
+    killall udhcpd >>"${LOG_FILE}" 2>&1 || true
+    # killall hostapd  >>"${LOG_FILE}" 2>&1 || true
+    ifconfig wlan0 0.0.0.0  >>"${LOG_FILE}" 2>&1 || true
 }
 
 start_sta() {
@@ -39,10 +29,9 @@ start_sta() {
     fi
 
     stop_wifi_stack
-    ifconfig wlan0 0.0.0.0 >/dev/null 2>&1 || true
-    ifconfig wlan0 up >/dev/null 2>&1 || true
+    ifconfig wlan0 up  >>"${LOG_FILE}" 2>&1 || true
 
-    mkdir -p /var/run/wpa_supplicant >/dev/null 2>&1 || true
+    mkdir -p /var/run/wpa_supplicant  >>"${LOG_FILE}" 2>&1 || true
 
     cat > /tmp/wpa_supplicant.conf <<'EOF'
 ctrl_interface=/var/run/wpa_supplicant
@@ -67,19 +56,27 @@ EOF
         udhcpc -i wlan0 >>"${LOG_FILE}" 2>&1 || true
     fi
 
+    iwpriv wlan0 common get_conn_state > /tmp/wpa_status.txt
+
     return 0
 }
 
-load_cfg
-log "wifi_apply starting (MODE=${MODE})"
+drop_factory_ap() {
+    # Firmware starts wlan0 as AP (udhcpd + 172.16.10.1) before this hijack.
+    # Drop only that AP DHCP/address. Never kill wpa_supplicant or zero a live STA IP.
+    killall udhcpd >>"${LOG_FILE}" 2>&1 || true
+    if ifconfig wlan0 2>/dev/null | grep -q "inet addr:172.16.10.1"; then
+        log "Drop factory AP address 172.16.10.1"
+        ifconfig wlan0 0.0.0.0 >>"${LOG_FILE}" 2>&1 || true
+    else
+        log "MODE=none: leave STA addressing unchanged"
+    fi
+}
 
 case "${MODE}" in
     none|"")
         log "MODE=none, leaving wifi unchanged (set WIFI_MODE=sta in wifi.conf)"
-        # Try to put wifi back into station mode after AP hijack.
-        killall udhcpd >/dev/null 2>&1 || true
-        ifconfig wlan0 0.0.0.0 >/dev/null 2>&1 || true
-        # touch /tmp/wifi_is_8188 >/dev/null 2>&1 || true
+        drop_factory_ap
         exit 0
         ;;
     sta)

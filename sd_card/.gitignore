@@ -1,0 +1,10 @@
+# SD runtime artifacts
+/logs/*
+!/logs/.gitkeep
+/custom/state/*.db
+/custom/state/_ht_uuid.ini
+# Per-camera encoder snapshot (copied from flash on first boot)
+/custom/state/_ht_hw_settings.ini
+# Scratch TLS material for the on-camera latch. Not a key to commit.
+/custom/state/mqtt/**/*
+!/custom/state/mqtt/.gitkeep

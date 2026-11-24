@@ -1,5 +1,7 @@
 # LSC Camera  Root Toolkit
 
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/tasarren)
+
 This file documents the current firmware findings and a practical SD-card flow to boot custom scripts and keep local
 services.
 
@@ -8,10 +10,6 @@ This findings belongs to version `6.2863.123` but it should work on any version,
 
 Huge thanks to [guino/LSCOutdoor1080P](https://github.com/guino/LSCOutdoor1080P) because their findings allowed me to
 create this toolkit.
-
-If this project was useful to you, please consider supporting me.
-
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/tasarren)
 
 ## Key boot findings from the dump
 
@@ -205,3 +203,7 @@ All custom logs are written to the SD card under `SD_DIR/logs/` (where `SD_DIR` 
 Open an Issue or PR anytime.
 
 If you used the Toolkit to dump your camera filesystem (you should have a dump/ directory on the SD card) and your firmware is not 6.2863.123, please share the dump (or a link) in this repo so we can add support for your version. If the dump contains secrets (Wi-Fi credentials/keys), remove them before uploading.
+
+## Support
+
+Tip on [Ko-fi](https://ko-fi.com/tasarren) or sponsor [@tasarren on GitHub](https://github.com/sponsors/tasarren). Both help keep this project moving.
